@@ -1,5 +1,4 @@
-from towergame import TowerGame
-
+from tower.game import TowerGame
 
 def start_game():
     game = TowerGame.create()
