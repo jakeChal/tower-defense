@@ -1,7 +1,13 @@
 from dataclasses import dataclass, field
 import pygame
-from tower import constants
+from tower.constants import (
+    SPRITES,
+    SCREENRECT,
+    IMAGE_SPRITES,
+    SOUNDS
+)
 import enum
+from tower.loader import import_image, import_sound
 
 
 class GameState(enum.Enum):
@@ -44,15 +50,22 @@ class TowerGame:
     screen: pygame.Surface
     screen_rect: pygame.Rect
     fullscreen: bool
+    channels: dict
     state: GameState
     game_menu: "GameLoop" = field(init=False, default=None)
 
     @classmethod
     def create(cls, fullscreen=False):
+        channels = {
+            "footsteps": None,
+            "turrets": None,
+            "score": None,
+        }
         game = cls(
             screen=None,
-            screen_rect=constants.SCREENRECT,
+            screen_rect=SCREENRECT,
             fullscreen=fullscreen,
+            channels=channels,
             state=GameState.initializing
         )
         game.init()
@@ -94,6 +107,16 @@ class TowerGame:
             self.screen_rect.size, window_style, 32)
         screen = pygame.display.set_mode(
             self.screen_rect.size, window_style, bit_depth)
+
+        for sprite_index, sprite_name in SPRITES.items():
+            img = import_image(sprite_name)
+            for flipped_x in (False, True):
+                for flipped_y in (False, True):
+                    new_img = pygame.transform.flip(img, flip_x=flipped_x, flip_y=flipped_y)
+
+                    IMAGE_SPRITES[(flipped_x, flipped_y, sprite_index)] = new_img
+
+
         pygame.mixer.pre_init(
             frequency=44100,
             size=32,
@@ -102,6 +125,21 @@ class TowerGame:
             channels=2,
             buffer=512,
         )
+
+        if pygame.mixer.get_init() is None:
+            pygame.mixer = None
+        else:
+            # Load the sounds
+            for sound_key, sound_name in SOUNDS.items():
+                sound = import_sound(sound_name)
+                SOUNDS[sound_key] = sound
+
+            # Map the channels and channel names to a dedicated
+            # `Channel` object sourced from pygame's sound mixer.
+            for channel_id, channel_name in enumerate(self.channels):
+                self.channels[channel_name] = pygame.mixer.Channel(channel_id)
+                self.channels[channel_name].set_volume(1.0)
+
         pygame.font.init()
         self.screen = screen
         self.state = GameState.initialized
