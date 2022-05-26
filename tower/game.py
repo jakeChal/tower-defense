@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 import pygame
 from tower.constants import (
+    DESIRED_FPS,
     SPRITES,
     SCREENRECT,
     IMAGE_SPRITES,
-    SOUNDS
+    SOUNDS,
 )
 import enum
 from tower.loader import import_image, import_sound
@@ -142,10 +143,9 @@ class TowerGame:
 
         pygame.font.init()
         self.screen = screen
-        self.state = GameState.initialized
         self.game_menu = GameMenu(game=self)
 
-        self.assert_state_is(GameState.initialized)
+        self.set_state(GameState.initialized)
 
 
 @dataclass
@@ -153,11 +153,21 @@ class GameLoop:
     game: TowerGame
 
     def handle_events(self):
-        # if event is quitting
+        """
+        Sample event handler that ensures quit events and normal
+        event loop processing takes place. Without this, the game will
+        hang, and repaints by the operating system will not happen,
+        causing the game window to hang.
+        """
         for event in pygame.event.get():
-            if (event.type == pygame.QUIT) or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if self.state == GameState.main_menu:
+                    self.set_state(GameState.quitting)
+                else:
+                    self.set_state(GameState.main_menu)
+            if event.type == pygame.QUIT:
                 self.set_state(GameState.quitting)
-
+            # Delegate the event to a sub-event handler `handle_event`
             self.handle_event(event)
 
     def loop(self):
@@ -178,6 +188,21 @@ class GameLoop:
     def state(self):
         return self.game.state
 
+def start_game():
+    """
+    Default entrypoint for the game
+    """
+    game = TowerGame.create()
+    game.start_game()
+
 
 class GameMenu(GameLoop):
-    pass
+    def loop(self):
+        clock = pygame.time.Clock()
+        self.screen.blit(IMAGE_SPRITES[(False, False, "backdrop")], (0, 0))
+        while self.state == GameState.main_menu:
+            self.handle_events()
+            pygame.display.flip()
+            pygame.display.set_caption(f"FPS {round(clock.get_fps())}")
+            clock.tick(DESIRED_FPS)
+
